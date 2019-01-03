@@ -44,19 +44,28 @@
             group1.orientation = "column"; group1.alignment=['fill','top'];// group1alignChildren=['fill','fill'];
             //var myEditText = group1.add("edittext",undefined,"EditText");
             //myEditText.alignment=['fill','fill'];
-            var group1row = group1.add("group",undefined,"test");
-            group1row.orientation = "row"; group1row.alignment=['left','fill'];
-            var cbScaleToFit = group1row.add("checkbox",undefined,"Scale To Fit"); cbScaleToFit.alignment=['left','fill'];
-            var rbScaleMethod1 = group1row.add("radiobutton", undefined, "Scale By Width");
-            var rbScaleMethod2 = group1row.add("radiobutton", undefined, "Scale By Height");
+             var group1row0 = group1.add("group",undefined,"test");
+            group1row0.orientation = "row"; group1row0.alignment=['fill','fill'];
+            var insertAt = group1row0.add("checkbox",undefined,"Insert At Index (else top)"); insertAt.alignment=['left','fill'];
+            var insertIndex = group1row0.add("slider", undefined, "Slider");
+            insertIndex.value=1; insertIndex.minvalue=1; insertIndex.maxvalue=20;
+            insertIndex.alignment=['fill','fill'];
+            var txtIndex = group1row0.add("StaticText",undefined,'1');
+            txtIndex.alignment=['fill','right']; 
+            var group1row1 = group1.add("group",undefined,"test");
+            group1row1.orientation = "row"; group1row1.alignment=['left','fill'];
+            var cbScaleToFit = group1row1.add("checkbox",undefined,"Scale To Fit"); cbScaleToFit.alignment=['left','fill'];
+            var rbScaleMethod1 = group1row1.add("radiobutton", undefined, "Scale By Width");
+            var rbScaleMethod2 = group1row1.add("radiobutton", undefined, "Scale By Height");
             var group1row2 = group1.add("group",undefined,"test");
             group1row2.orientation = "row"; group1row2.alignment=['fill','fill'];
             var cbFillBg = group1row2.add("checkbox",undefined,"Fill BG Blurred"); cbFillBg.alignment=['left','fill'];
             var slBlur = group1row2.add("slider", undefined, "Slider");
-            slBlur.value=50;
+            slBlur.value=50; slBlur.minvalue=5; slBlur.maxvalue=100;
             slBlur.alignment=['fill','fill'];
             var txtBlur = group1row2.add("StaticText",undefined,'50');
             txtBlur.alignment=['fill','right'];
+            var cbDeleteOld = group1.add("checkbox",undefined,"Delete Item(s) (if Already Exists)"); cbDeleteOld.alignment=['left','fill'];
             var cbDisableText = group1.add("checkbox",undefined,"Disable Text Layers"); cbDisableText.alignment=['left','fill'];
             //var mycheckbox = group1.add("checkbox",undefined,"Scale To Fit"); mycheckbox.alignment=['left','fill'];
 
@@ -64,7 +73,7 @@
             buttons.orientation = "row";  buttons.alignment=['fill','fill'];
             button1 = buttons.add ('button {text: "Analyize"}');button1.alignment=['fill','fill']  ;
             button2 = buttons.add ('button {text: "Process"}');button2.alignment=['fill','fill']  ;
-            button3 = buttons.add ('button {text: "Evaluate"}');button3.alignment=['fill','fill']  ;
+            button3 = buttons.add ('button {text: "Debug Evaluate"}');button3.alignment=['fill','fill']  ;
             //Add resource string to panel
             //myPanel.grp = myPanel.add(res);
             
@@ -73,13 +82,15 @@
             rbScaleMethod2.value = true;
             cbFillBg.value=true;
             button2.disable = true;
+            cbDeleteOld.value = true;
             // BINDING EVENTS
+            slBlur.onChange = function () { txtBlur.text = Math.round(slBlur.value) ;}
+            insertIndex.onChange = function () { txtIndex.text = Math.round(insertIndex.value) ;}
             button1.onClick = function () {
-                //testFunction();
                 getUserSelectionAnalysis();
             }
             button2.onClick = function () {
-                getUserProjectSelectionForReplacement();
+                doBulkReplacement();
             }
             button3.onClick = function (){
                 unitTestReplaceItem();
@@ -92,8 +103,8 @@
             myPanel.onResizing = myPanel.onResize = function () {this.layout.resize();}
             return myPanel;
         }
-        // OTHER FUNCTIONS
-        function testFunction(){
+        // OTHER FUNCTIONS // generic stuff // ui access will be hard, only way is pass parameters
+        function testFunction () {
             alert ("hello");
         }
         function getProjectCompItems() {
@@ -135,17 +146,45 @@
                 alert ("Minimum Select 2 Items , Come On..\r\n You can do it");
             }
         }
-        
+        function doBulkReplacement(){
+            // checks weather user has selected equal footageItems or not and report
+            if (app.project.selection.length > 1) {
+                var selection = app.project.selection;
+                compItems = [];
+                footageItems = [];
+                for (var i = 0; i < selection.length; i++) {
+                    if (selection[i] instanceof CompItem) {
+                        compItems.push(selection[i]);
+                    }
+                    else if (selection[i] instanceof FootageItem) {
+                        footageItems.push(selection[i]);
+                    }
+                }
+                if (compItems.length == footageItems.length ) {
+                    bulkReplace(compItems,footageItems);
+                }
+            } else {
+                alert ("Minimum Select 2 Items , Come On..\r\n You can do it");
+            }
+        }
         function unitTestReplaceItem(){
             if (app.project.selection.length == 2) {
                 var selection = app.project.selection;
                 item1 =  selection[0]; 
                 item2 = selection[1];
-                if (item2 instanceof CompItem && item1 instanceof FootageItem) {
-                    addImageLayer(item1,item2);
-                } else {
-                    alert ("items not selected in correct order Probably (Comp and Footage)");
-                }
+                p1 = win.children[0]; // this is a panel
+                
+                // if (item2 instanceof CompItem && item1 instanceof FootageItem) {
+                //     if (imageExistInComp(item2,item1)) {
+                //        existingItems = getAVLayersInCompMatchFooage(item2,item1);
+                //        alert ("Items count :" + existingItems.length );
+                //        removeAVLayersInCompMatchFootage(item2,item1,existingItems);
+                //     } else {
+                //        alert("item doesn't exist in comp");
+                //     }
+                // } else {
+                //     alert ("items not selected in correct order Probably (Comp and Footage)");
+                // }
                     
             } else {
                 alert ("Please select two Items (Comp and Footage Item)")
@@ -234,21 +273,47 @@
         }
         function getAVLayersInCompMatchFooage(compItem,footageItem){
             // will return array of AVLayer Objects which exist in that comp
+            footageName = footageItem.name; // TODO: ideally it should be footage Item main source
+            avLayers = []
+            for(var i = 1; i <= compItem.numLayers; i++){ 
+                layer = compItem.layer(i); // object avLayer
+                if (layer instanceof AVLayer && layer.source.name == footageName) {
+                    avLayers.push(layer);
+                }
+            }
+            return avLayers;
         }
-        function removeAVLayersInCompMatchFootage(compItem,footageItem){
-            // will remove footage items previously used in comp
-        }
-        function disableTextLayersInComp(compItem){
+        function removeAVLayersInCompMatchFootage(compItem,footageItem,avLayersList){
+            footageName = footageItem.name; // TODO: ideally it should be footage Item main source
+            alert("In Loop Start");
+            for(var i = avLayersList.length; i--;) {
+                layToRm = avLayersList[i];
+                layToRm.remove();
+            }
+            // for (var i=avLayersList.length; i>=0; i--){
+            //     try {  
+            //         var layToRm = compItem.layers.getByName(avLayersList[i].name);  
+            //         alert(layToRm);
+            //         //var layToRm = avLayersList[i];
+            //         if(!layToRm.visisible) layToRm.visible = true;  
+            //         if(layToRm.locked) layToRm.locked = false;  
+            //         layToRm.remove();  
+            //     } catch (e) {}
+            // }
+            
             
         }
+        function disableTextLayersInComp(compItem){
 
-        var myScriptPal = myScript_buildUI(thisObj);
+        }
 
-        if ((myScriptPal != null) && (myScriptPal instanceof Window)) {
-            myScriptPal.center();
-            myScriptPal.show();
+        var win = myScript_buildUI(thisObj);
+
+        if ((win != null) && (win instanceof Window)) {
+            win.center();
+            win.show();
         } else {
-            //myScriptPal.layout.layout(true);
+            //win.layout.layout(true);
         }
     }
     myScript(this);
