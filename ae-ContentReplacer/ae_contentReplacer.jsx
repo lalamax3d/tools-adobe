@@ -64,11 +64,15 @@
             buttons.orientation = "row";  buttons.alignment=['fill','fill'];
             button1 = buttons.add ('button {text: "Analyize"}');button1.alignment=['fill','fill']  ;
             button2 = buttons.add ('button {text: "Process"}');button2.alignment=['fill','fill']  ;
+            button3 = buttons.add ('button {text: "Evaluate"}');button3.alignment=['fill','fill']  ;
             //Add resource string to panel
             //myPanel.grp = myPanel.add(res);
             
             // SETTING DEFAULT VALUES
-            
+            cbScaleToFit.value = true;
+            rbScaleMethod2.value = true;
+            cbFillBg.value=true;
+            button2.disable = true;
             // BINDING EVENTS
             button1.onClick = function () {
                 //testFunction();
@@ -76,6 +80,9 @@
             }
             button2.onClick = function () {
                 getUserProjectSelectionForReplacement();
+            }
+            button3.onClick = function (){
+                unitTestReplaceItem();
             }
             
             //Setup panel sizing and make panel resizable
@@ -90,6 +97,7 @@
             alert ("hello");
         }
         function getProjectCompItems() {
+            // took from web somewhere, just select all comps in project panel
             if (app.project.selection.length > 0) {
                 var selection = app.project.selection;
                 for (var i = 0; i < selection.length; i++) {
@@ -106,7 +114,8 @@
             }
         }
         function getUserSelectionAnalysis(){
-            if (app.project.selection.length > 2) {
+            // checks weather user has selected equal footageItems or not and report
+            if (app.project.selection.length > 1) {
                 var selection = app.project.selection;
                 compItems = [];
                 footageItems = [];
@@ -118,27 +127,22 @@
                         footageItems.push(selection[i]);
                     }
                 }
-                // now replace items
-                for (var i = 0; i < compItems.length; i++) {
-                    ci = compItems[i];
-                    ii = footageItems[i];
-                    replaceItem(ci,ii);
+                if (compItems.length == footageItems.length ) {
+                    userPrompt = "All seems good\r\nCompItems:" + compItems.length +"\r\nFootageItems:" + footageItems.length;
+                    alert (userPrompt);
                 }
- 
-
             } else {
                 alert ("Minimum Select 2 Items , Come On..\r\n You can do it");
             }
         }
-        function getUserProjectSelectionForReplacement(){
+        
+        function unitTestReplaceItem(){
             if (app.project.selection.length == 2) {
                 var selection = app.project.selection;
                 item1 =  selection[0]; 
                 item2 = selection[1];
-                // alert (item1.name);
-                // alert(item2.name);
                 if (item2 instanceof CompItem && item1 instanceof FootageItem) {
-                    replaceItem(item2,item1);
+                    addImageLayer(item1,item2);
                 } else {
                     alert ("items not selected in correct order Probably (Comp and Footage)");
                 }
@@ -147,22 +151,15 @@
                 alert ("Please select two Items (Comp and Footage Item)")
             }
         }
-        function replaceItem(myComp,myImage) {
-            //var comp = currentProj.items.addComp("mycomp", 1920, 1080, 1.0, 5, 29.97);
-            msg = "Comp:("+myComp.width + "," + myComp.height + ")\r\n";
-            msg = msg + "Image:(" + myImage.width + "," + myImage.height+")";
-            // TODO : double check selection order
-            //alert(msg);
-            addImageLayer(myImage,myComp);
-            // compItem.selectedLayers
-            // compItem.workAreaDuration
-            
-            // compItem.layer(index)
-            // compItem.layer(otherLayer, relIndex)
-            // compItem.layer(name)
-            // compItem.openInViewer()
-
+        function bulkReplace (compItems,footageItems){
+            // assuming both array objects are of same length
+            for (var i = 0; i < compItems.length; i++) {
+                ci = compItems[i];
+                ii = footageItems[i];
+                addImageLayer(ii,ci);
+            }
         }
+        
         function addImageLayer(image,comp){
             footageName = image.name
             var layerItem = null;
@@ -217,6 +214,31 @@
             }else {
                 alert ("skipping blur stuff");
             }
+            
+        }
+        function imageExistInComp(compItem,footageItem){
+            // return true or false
+            //alert (footageItem.name);
+            //alert(footageItem.mainSource); // returns filesource
+            //alert(compItem.name); // comp name
+            footageName = footageItem.name; // TODO: ideally it should be footage Item main source
+            imageFound = false;
+            for(var i = 1; i <= compItem.numLayers; i++){ 
+                layer = compItem.layer(i); // object avLayer
+                if (layer instanceof AVLayer && layer.source.name == footageName) {
+                    imageFound = true;
+                    break;
+                }
+            }
+            return imageFound;
+        }
+        function getAVLayersInCompMatchFooage(compItem,footageItem){
+            // will return array of AVLayer Objects which exist in that comp
+        }
+        function removeAVLayersInCompMatchFootage(compItem,footageItem){
+            // will remove footage items previously used in comp
+        }
+        function disableTextLayersInComp(compItem){
             
         }
 
