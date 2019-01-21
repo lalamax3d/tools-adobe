@@ -9,6 +9,16 @@
     // initialize stuff
 
     function myScript(thisObj) {
+        var options = {
+                    insertAt: false,
+                    insertIndex: 0,
+                    cbScaleToFit:true,
+                    scaleMethod:1,//height, 0 is width
+                    cbFillBg:true,
+                    slBlur:50,
+                    cbDeleteOld:true,
+                    cbDisableText:false
+                };
         function myScript_buildUI(thisObj) {
             var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", scriptName+" v"+scriptVersion,undefined); //[0, 0, 300, 200]);
 
@@ -84,8 +94,16 @@
             button2.disable = true;
             cbDeleteOld.value = true;
             // BINDING EVENTS
-            slBlur.onChange = function () { txtBlur.text = Math.round(slBlur.value) ;}
-            insertIndex.onChange = function () { txtIndex.text = Math.round(insertIndex.value) ;}
+            insertAt.onClick = function () {options.insertAt = insertAt.value;}
+            insertIndex.onChange = function () { options.insertIndex = Math.round(insertIndex.value); txtIndex.text = Math.round(insertIndex.value) ;}
+            cbScaleToFit.onClick = function (){options.cbScaleToFit=cbScaleToFit.value;}
+            rbScaleMethod1.onClick = function (){options.scaleMethod=0;}
+            rbScaleMethod2.onClick = function (){options.scaleMethod=1;}
+            cbFillBg.onClick = function () {options.cbFillBg = cbFillBg.value;}
+            slBlur.onChange = function () { options.slBlur = Math.round(slBlur.value); txtBlur.text = Math.round(slBlur.value) ;}
+            cbDeleteOld.onClick = function () {options.cbDeleteOld = cbDeleteOld.value;}
+            cbDisableText.onClick = function () {options.cbDisableText = cbDisableText.value;}
+
             button1.onClick = function () {
                 getUserSelectionAnalysis();
             }
@@ -170,21 +188,25 @@
         function unitTestReplaceItem(){
             if (app.project.selection.length == 2) {
                 var selection = app.project.selection;
-                item1 =  selection[0]; 
-                item2 = selection[1];
-                p1 = win.children[0]; // this is a panel
-                
-                // if (item2 instanceof CompItem && item1 instanceof FootageItem) {
-                //     if (imageExistInComp(item2,item1)) {
-                //        existingItems = getAVLayersInCompMatchFooage(item2,item1);
-                //        alert ("Items count :" + existingItems.length );
-                //        removeAVLayersInCompMatchFootage(item2,item1,existingItems);
-                //     } else {
-                //        alert("item doesn't exist in comp");
-                //     }
-                // } else {
-                //     alert ("items not selected in correct order Probably (Comp and Footage)");
-                // }
+                footageItem =  selection[0]; 
+                compItem = selection[1];
+                //p1 = win.children[0]; // this is a panel
+                if (compItem instanceof CompItem && footageItem instanceof FootageItem) {
+                           singleReplace(footageItem,compItem);            
+                } else {
+                    alert ("items not selected in correct order Probably (Comp and Footage)");
+                }
+
+                // getting layer item index
+               
+
+                for(var i = 1; i <= compItem.numLayers; i++){ 
+                layer = compItem.layer(i); // object avLayer
+                if (layer instanceof AVLayer && layer.source.name == footageName) {
+                    avLayers.push(layer);
+                }
+            }
+
                     
             } else {
                 alert ("Please select two Items (Comp and Footage Item)")
@@ -195,63 +217,65 @@
             for (var i = 0; i < compItems.length; i++) {
                 ci = compItems[i];
                 ii = footageItems[i];
-                addImageLayer(ii,ci);
+                singleReplace(ii,ci);
             }
         }
         
-        function addImageLayer(image,comp){
-            footageName = image.name
-            var layerItem = null;
-            // check if not already added
-            for (var i = 1; i <= comp.numLayers; i++){
-                testLayer = comp.layer(i);
-                if (testLayer.name == footageName && testLayer instanceof FootageItem){
-                    layerItem = comp.layer(i)
-                    break;
+        function singleReplace(footageItem,compItem){
+            // Delete if already exists ( all instances )
+            if (options.cbDeleteOld == true) {
+                if (imageExistInComp(compItem,footageItem)) {
+                    existingItems = getAVLayersInCompMatchFooage(compItem,footageItem);
+                    alert ("Items count :" + existingItems.length );
+                    removeAVLayersInCompMatchFootage(compItem,footageItem,existingItems);
                 }
             }
-            // alert (layerItem);
-            if (layerItem == null){
-                layerItem = comp.layers.add(image);
-                // alert ("Adding Layer" + layerItem.width);
+            // Add at index or top
+            numLayers = compItem.numLayers;
+            layerItem = compItem.layers.add(footageItem);
+            if (options.insertAt==true){
+                if (numLayers > options.insertInded) {
+                    layer = compItem.layer(options.insertIndex);
+                    layerItem.moveAfter(layer);
+                }
             }
-            // scaling layer by height of comp
-            sf = (comp.height * 100) / layerItem.height;
-            layerScale = [sf,sf];
-            layerItem.scale.setValue(layerScale);
-            // duplicate if width is lower
+            // scale it (width or height)
+            layerScale = [100,100];
+            if (options.cbScaleToFit==true){
+                if (options.scaleMethod == 1) {
+                    sf = (compItem.height * 100) / layerItem.height;
+                    layerScale = [sf,sf];
+                    layerItem.scale.setValue(layerScale);
+                } else {
+                    sf = (compItem.width * 100) / layerItem.width;
+                    layerScale = [sf,sf];
+                    layerItem.scale.setValue(layerScale);
+                }
+            }
+            // fill bg
+            sf = (compItem.width * 100) / layerItem.width;
             scaledWidth = layerItem.width / sf;
-            // alert (comp.width + " >> " + scaledWidth);
-            if (comp.width > scaledWidth ) {
-                //bgLayer = layerItem.duplicate()
-                //bgLayer.name("BG_LAYER");
-                bgItem = comp.layers.add(image);
-                sf = (comp.width * 100) / bgItem.width;
-                layerScale = [sf,sf];
-                bgItem.scale.setValue(layerScale);
-                bgItem.moveAfter(layerItem);
+            layerScale = [sf,sf];
 
-                // add blur effects
-                var effectsGroup = bgItem("Effects");             // Get the PropertyGroup for the effects
-                if (effectsGroup !== null)                       // Filter out layers that cannot use effects
-                {
-                    if (effectsGroup.canAddProperty("Gaussian Blur"))   // First check if the effect can be applied
-                    {
-                        var effectBase = effectsGroup.addProperty("Gaussian Blur");
-                        if (effectBase !== null)
-                        {
-                            bluramount = image.width / 10;
-                            effectBase.property("Blurriness").setValue(bluramount);
+            if (options.cbFillBg == true && compItem.width > layerItem.width){
+                    // sf = (comp.width * 100) / layerItem.width;
+                    // scaledHeight = layerItem.height / sf;
+                    bgLayerItem = compItem.layers.add(footageItem);
+                    bgLayerItem.moveAfter(layerItem);
+                    bgLayerItem.scale.setValue(layerScale);
 
-                        } else {
-                            alert ("can't add successfully");
+                    // apply blur
+                        var effectsGroup = bgLayerItem("Effects");             // Get the PropertyGroup for the effects
+                        if (effectsGroup !== null)  {
+                            if (effectsGroup.canAddProperty("Gaussian Blur")) {
+                                var effectBase = effectsGroup.addProperty("Gaussian Blur");
+                                if (effectBase !== null) {
+                                    bluramount = bgLayerItem.width / 20;
+                                    effectBase.property("Blurriness").setValue(bluramount);
+                                } 
+                            } 
                         }
-                    } else {
-                        alert ("can't add this property");
-                    }
-                }
-            }else {
-                alert ("skipping blur stuff");
+                    
             }
             
         }
